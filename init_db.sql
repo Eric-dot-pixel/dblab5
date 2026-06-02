@@ -28,8 +28,7 @@ CREATE TABLE User (
     gender     ENUM('M','F','Other'),
     birthdate  DATE,
     age        INT          CHECK (age >= 0 AND age <= 150),
-    created_at DATETIME     DEFAULT CURRENT_TIMESTAMP,
-    is_active  TINYINT(1)   DEFAULT 1   -- 0 = 已被管理员注销
+    created_at DATETIME     DEFAULT CURRENT_TIMESTAMP
 );
 
 -- ------------------------------------------------------------
@@ -44,7 +43,8 @@ CREATE TABLE FriendGroup (
 );
 
 -- ------------------------------------------------------------
--- 4. 好友关系表（有向：user_id 添加了 friend_id）
+-- 4. 好友关系表
+--    业务上好友关系为双向；程序添加好友时会同时插入 A->B 和 B->A 两条记录。
 -- ------------------------------------------------------------
 CREATE TABLE Friendship (
     user_id    INT  NOT NULL,
@@ -127,11 +127,12 @@ INSERT INTO User (username, password, real_name, gender, birthdate, age) VALUES
 -- alice 的好友分组
 INSERT INTO FriendGroup (user_id, group_name) VALUES (1, '同学'), (1, '同事');
 
--- alice 添加 bob 为好友（同学分组），bob 添加 alice 为好友
+-- 好友关系按双向记录保存
 INSERT INTO Friendship (user_id, friend_id, group_id) VALUES
 (1, 2, 1),
 (2, 1, NULL),
-(1, 3, 1);
+(1, 3, 1),
+(3, 1, NULL);
 
 -- 朋友圈
 INSERT INTO Post (user_id, content) VALUES

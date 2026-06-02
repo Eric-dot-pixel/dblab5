@@ -20,7 +20,7 @@
   <text x="82" y="174" class="text">username, password</text>
   <text x="82" y="198" class="text">real_name, gender</text>
   <text x="82" y="222" class="text">birthdate, age</text>
-  <text x="82" y="246" class="text">created_at, is_active</text>
+  <text x="82" y="246" class="text">created_at</text>
 
   <rect x="445" y="90" width="230" height="145" class="box"/>
   <text x="560" y="120" text-anchor="middle" class="title">FriendGroup 好友分组</text>
@@ -36,7 +36,7 @@
   <text x="837" y="198" class="text">real_name, email</text>
 
   <rect x="445" y="310" width="230" height="155" class="box"/>
-  <text x="560" y="340" text-anchor="middle" class="title">Friendship 好友关系</text>
+  <text x="560" y="340" text-anchor="middle" class="title">Friendship 双向好友关系</text>
   <text x="467" y="370" class="text">PK (user_id, friend_id)</text>
   <text x="467" y="394" class="text">FK user_id -&gt; User</text>
   <text x="467" y="418" class="text">FK friend_id -&gt; User</text>

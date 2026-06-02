@@ -1,7 +1,7 @@
 # ============================================================
 # 实验五：社交网络平台  lab5.py
 # 数据库：MySQL (SocialDB)
-# 程序启动时会自动执行 init_db.sql 完成数据库初始化
+# 可在主菜单中选择执行 init_db.sql 完成数据库初始化
 # ============================================================
 
 import mysql.connector
@@ -144,6 +144,22 @@ def init_database():
         close_db(cursor, conn)
 
 
+def check_database_ready():
+    conn = None
+    cursor = None
+    try:
+        conn = get_conn()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1")
+        return True
+    except Error as e:
+        print(f"  数据库不可用: {e}")
+        print("  请先在主菜单选择“初始化/重置数据库”，或检查 MySQL 配置。")
+        return False
+    finally:
+        close_db(cursor, conn)
+
+
 # ============================================================
 # 用户功能
 # ============================================================
@@ -192,16 +208,13 @@ def user_login():
         conn   = get_conn()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT user_id, real_name, is_active FROM User "
+            "SELECT user_id, real_name FROM User "
             "WHERE username=%s AND password=%s",
             (username, hash_password(password))
         )
         row = cursor.fetchone()
         if row is None:
             print("  用户名或密码错误。")
-            return None
-        if row[2] == 0:
-            print("  该账号已被管理员注销。")
             return None
         print(f"  登录成功！你好，{row[1] or username}。")
         return row[0]
@@ -257,7 +270,7 @@ def search_user(keyword):
         cursor = conn.cursor()
         cursor.execute(
             "SELECT user_id, username, real_name FROM User "
-            "WHERE username LIKE %s AND is_active=1",
+            "WHERE username LIKE %s",
             (f'%{keyword}%',)
         )
         rows = cursor.fetchall()
@@ -289,10 +302,10 @@ def add_friend(user_id):
         conn   = get_conn()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT 1 FROM User WHERE user_id=%s AND is_active=1", (friend_id,)
+            "SELECT 1 FROM User WHERE user_id=%s", (friend_id,)
         )
         if cursor.fetchone() is None:
-            print("  该用户不存在或已注销。")
+            print("  该用户不存在。")
             return
         cursor.execute(
             "SELECT group_id, group_name FROM FriendGroup WHERE user_id=%s", (user_id,)
@@ -316,9 +329,19 @@ def add_friend(user_id):
             "VALUES (%s, %s, %s)",
             (user_id, friend_id, group_id)
         )
+        inserted_forward = cursor.rowcount
+        cursor.execute(
+            "INSERT IGNORE INTO Friendship (user_id, friend_id, group_id) "
+            "VALUES (%s, %s, NULL)",
+            (friend_id, user_id)
+        )
+        inserted_reverse = cursor.rowcount
         conn.commit()
-        if cursor.rowcount == 0:
+        inserted_total = inserted_forward + inserted_reverse
+        if inserted_total == 0:
             print("  已经是好友，无需重复添加。")
+        elif inserted_total == 1:
+            print("  好友关系已补全为双向。")
         else:
             print("  好友添加成功。")
     except Error as e:
@@ -340,8 +363,14 @@ def remove_friend(user_id):
             "DELETE FROM Friendship WHERE user_id=%s AND friend_id=%s",
             (user_id, friend_id)
         )
+        deleted_forward = cursor.rowcount
+        cursor.execute(
+            "DELETE FROM Friendship WHERE user_id=%s AND friend_id=%s",
+            (friend_id, user_id)
+        )
+        deleted_reverse = cursor.rowcount
         conn.commit()
-        if cursor.rowcount == 0:
+        if deleted_forward + deleted_reverse == 0:
             print("  未找到该好友关系。")
         else:
             print("  好友已删除。")
@@ -411,6 +440,13 @@ def manage_friend_groups(user_id):
                 print(f"    {g[0]}. {g[1]}")
             friend_id = input_int("  好友 ID: ")
             group_id  = input_int("  目标分组 ID: ")
+            cursor.execute(
+                "SELECT 1 FROM Friendship WHERE user_id=%s AND friend_id=%s",
+                (user_id, friend_id)
+            )
+            if cursor.fetchone() is None:
+                print("  该用户不是你的好友。")
+                return
             cursor.execute(
                 "SELECT 1 FROM FriendGroup WHERE group_id=%s AND user_id=%s",
                 (group_id, user_id)
@@ -546,6 +582,42 @@ def view_friend_posts(user_id):
         close_db(cursor, conn)
 
 
+def view_my_posts(user_id):
+    conn = None
+    cursor = None
+    try:
+        conn = get_conn()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT post_id, content, created_at, updated_at
+            FROM Post
+            WHERE user_id=%s
+            ORDER BY updated_at DESC
+        """, (user_id,))
+        posts = cursor.fetchall()
+        if not posts:
+            print("  你还没有发表朋友圈。")
+            return
+        for p in posts:
+            print(f"\n  [帖子ID:{p[0]}]  发布:{p[2]}  更新:{p[3]}")
+            print(f"  {p[1]}")
+            cursor.execute(
+                "SELECT u.username, c.content, c.created_at "
+                "FROM Comment c JOIN User u ON u.user_id=c.user_id "
+                "WHERE c.post_id=%s ORDER BY c.created_at",
+                (p[0],)
+            )
+            comments = cursor.fetchall()
+            if comments:
+                print("  评论：")
+                for c in comments:
+                    print(f"    @{c[0]}: {c[1]}  ({c[2]})")
+    except Error as e:
+        print(f"  查询失败: {e}")
+    finally:
+        close_db(cursor, conn)
+
+
 def add_comment(user_id):
     post_id = input_int("  输入要评论的朋友圈 ID: ")
     content = input("  评论内容: ").strip()
@@ -648,12 +720,12 @@ def admin_deactivate_user():
         conn   = get_conn()
         cursor = conn.cursor()
         cursor.execute(
-            "SELECT user_id, username FROM User WHERE username LIKE %s AND is_active=1",
+            "SELECT user_id, username FROM User WHERE username LIKE %s",
             (f'%{keyword}%',)
         )
         rows = cursor.fetchall()
         if not rows:
-            print("  未找到活跃用户。"); return
+            print("  未找到用户。"); return
         for r in rows:
             print(f"    ID={r[0]}  {r[1]}")
         uid = input_int("  输入要注销的用户 ID: ")
@@ -683,11 +755,9 @@ def admin_view_all_posts():
         conn   = get_conn()
         cursor = conn.cursor()
         cursor.execute("""
-            SELECT p.post_id, p.content, p.created_at, p.updated_at
-            FROM Post p
-            JOIN User u ON u.user_id = p.user_id
-            WHERE u.is_active = 1
-            ORDER BY p.updated_at DESC
+            SELECT post_id, content, created_at, updated_at
+            FROM Post
+            ORDER BY updated_at DESC
         """)
         posts = cursor.fetchall()
         if not posts:
@@ -739,7 +809,8 @@ def user_menu(user_id):
             ('8', '修改朋友圈'),
             ('9', '删除朋友圈'),
             ('10', '查看好友朋友圈'),
-            ('11', '评论朋友圈'),
+            ('11', '查看我的朋友圈'),
+            ('12', '评论朋友圈'),
             ('0', '退出登录'),
         ])
         choice = input("  请选择: ").strip()
@@ -753,7 +824,8 @@ def user_menu(user_id):
         elif choice == '8':  post_edit(user_id)
         elif choice == '9':  post_delete(user_id)
         elif choice == '10': view_friend_posts(user_id)
-        elif choice == '11': add_comment(user_id)
+        elif choice == '11': view_my_posts(user_id)
+        elif choice == '12': add_comment(user_id)
         elif choice == '0':  print("  已退出登录。"); break
         else: print("  无效选项。")
 
@@ -776,16 +848,13 @@ def admin_menu(admin_id):
         else: print("  无效选项。")
 
 
-def main():
-    if not init_database():
-        print("  数据库初始化失败，程序退出。")
-        return
+def system_menu():
     while True:
         print_menu("社交网络平台", [
             ('1', '用户注册'),
             ('2', '用户登录'),
             ('3', '管理员登录'),
-            ('0', '退出系统'),
+            ('0', '返回主菜单'),
         ])
         choice = input("  请选择: ").strip()
         if choice == '1':
@@ -798,6 +867,25 @@ def main():
             aid = admin_login()
             if aid:
                 admin_menu(aid)
+        elif choice == '0':
+            break
+        else:
+            print("  无效选项。")
+
+
+def main():
+    while True:
+        print_menu("Lab5 数据库应用系统", [
+            ('1', '初始化/重置数据库'),
+            ('2', '启动系统'),
+            ('0', '退出程序'),
+        ])
+        choice = input("  请选择: ").strip()
+        if choice == '1':
+            init_database()
+        elif choice == '2':
+            if check_database_ready():
+                system_menu()
         elif choice == '0':
             print("  再见！")
             break

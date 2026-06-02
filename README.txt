@@ -24,7 +24,7 @@
 
 3. 运行程序
    python lab5.py
-   程序启动时会自动执行 init_db.sql 初始化数据库，无需手动执行 SQL。
+   首次运行时在主菜单选择“初始化/重置数据库”，之后选择“启动系统”。
 
 【初始账号】
   管理员：admin / admin123
@@ -33,8 +33,8 @@
          charlie / charlie123
 
 【注意】
-  每次运行 lab5.py 会重建数据库（DROP DATABASE IF EXISTS SocialDB），
-  如不想重置数据，第二次运行前可将 init_db.sql 中第一行注释掉：
-  -- DROP DATABASE IF EXISTS SocialDB;
+  只有在主菜单选择“初始化/重置数据库”时才会重建数据库。
+  该操作会执行 DROP DATABASE IF EXISTS SocialDB，并清空已有数据。
+  普通启动请选择“启动系统”，不会重置数据库。
 
   数据库中保存的是 SHA-256 哈希后的密码，登录时仍使用上方明文初始账号即可。
