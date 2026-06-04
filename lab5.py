@@ -151,6 +151,7 @@ def check_database_ready():
         conn = get_conn()
         cursor = conn.cursor()
         cursor.execute("SELECT 1")
+        cursor.fetchall()
         return True
     except Error as e:
         print(f"  数据库不可用: {e}")
@@ -733,7 +734,7 @@ def admin_deactivate_user():
             print("  输入的 ID 不在本次搜索结果中。")
             return
 
-        conn.start_transaction()
+        #conn.start_transaction()
         cursor.execute("DELETE FROM User WHERE user_id=%s", (uid,))
         conn.commit()
         if cursor.rowcount == 0:
