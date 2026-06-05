@@ -324,7 +324,7 @@ def add_friend(user_id):
                 if group_id not in valid_groups:
                     print("  分组不存在或不属于当前用户。")
                     return
-        conn.start_transaction()
+        #conn.start_transaction()
         cursor.execute(
             "INSERT IGNORE INTO Friendship (user_id, friend_id, group_id) "
             "VALUES (%s, %s, %s)",
